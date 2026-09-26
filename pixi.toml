@@ -1,0 +1,53 @@
+[workspace]
+authors = ["Zerun Wang <zerunwang@gatech.edu>"]
+channels = ["robostack-humble", "conda-forge"]
+name = "AquaGuard"
+platforms = ["linux-64", "linux-aarch64"]
+version = "0.1.0"
+
+[activation]
+scripts = ["install/setup.sh"]
+
+[activation.env]
+# ------------------------------------------------------------------------------
+# Build
+# ------------------------------------------------------------------------------
+CMAKE_INSTALL_MODE = "SYMLINK"
+COLCON_DEFAULT_OUTPUT_STYLE = "catkin_tools"
+LIBRARY_PATH = "${CONDA_PREFIX}/lib:${LIBRARY_PATH}"
+LD_LIBRARY_PATH = "${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
+LDFLAGS = "-L${CONDA_PREFIX}/lib -Wl,-rpath,${CONDA_PREFIX}/lib"
+
+# ------------------------------------------------------------------------------
+# ROS2
+# ------------------------------------------------------------------------------
+RCUTILS_COLORIZED_OUTPUT = "1"
+ROS_AUTOMATIC_DISCOVERY_RANGE = "LOCALHOST"
+
+[dependencies]
+# ------------------------------------------------------------------------------
+# Build Tools
+# ------------------------------------------------------------------------------
+cmake = ">=4.2.3,<5"
+ninja = ">=1.13.2,<2"
+pkg-config = ">=0.29.2,<0.30"
+gcc = ">=14.3.0,<15.3"
+gxx = ">=14.3.0,<15.3"
+cxx-compiler = ">=1.0.0,<2"
+python = ">=3.12.13,<3.13"
+pip = ">=26.1.2,<27"
+colcon-common-extensions = ">=0.3.0,<0.4"
+
+# ------------------------------------------------------------------------------
+# ROS2 Humble
+# ------------------------------------------------------------------------------
+ros-humble-desktop = ">=0.10.0,<0.11"
+ros-humble-foxglove-bridge = ">=3.3.0,<4"
+
+
+[tasks]
+build   = "colcon build --symlink-install --cmake-args -Wno-dev -DBUILD_TESTING=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Release"
+clean   = "rm -rf build install log"
+tool_foxglove = "ros2 run foxglove_bridge foxglove_bridge --ros-args --log-level info -p max_qos_depth:=100"
+
+launch_grasp = "ros2 launch grasp_classifier grasp.launch.py"
