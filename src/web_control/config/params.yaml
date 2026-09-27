@@ -1,0 +1,6 @@
+web_control_node:
+  ros__parameters:
+    port: 1234                    # Cloudflare Tunnel Port
+    bind: "127.0.0.1"             
+    trigger_topic: "/motor/trigger"
+    state_topic: "/motor/state"
