@@ -50,4 +50,4 @@ build   = "colcon build --symlink-install --cmake-args -Wno-dev -DBUILD_TESTING=
 clean   = "rm -rf build install log"
 tool_foxglove = "ros2 run foxglove_bridge foxglove_bridge --ros-args --log-level info -p max_qos_depth:=100"
 
-launch_grasp = "ros2 launch grasp_classifier grasp.launch.py"
+launch_hw = "ros2 launch aquaguard_hw m3508_speed.launch.py"
