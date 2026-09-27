@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import errno
 import math
 import threading
 import time
@@ -18,8 +19,8 @@ class M3508SpeedNode(Node):
         super().__init__("m3508_speed_node")
         self.declare_parameter("can_iface", "can1")
         self.declare_parameter("esc_id", 1)
-        self.declare_parameter("target_hz", 200.0)        
-        self.declare_parameter("gear_ratio", 1.0)      
+        self.declare_parameter("target_hz", 100.0)        
+        self.declare_parameter("gear_ratio", 1.0)       
         self.declare_parameter("window", 4)
         self.declare_parameter("kp", mc.KP)
         self.declare_parameter("ki", mc.KI)
@@ -28,7 +29,7 @@ class M3508SpeedNode(Node):
         self.declare_parameter("run_on_start", False)
         self.declare_parameter("trigger_topic", "/motor/trigger")
         self.declare_parameter("state_topic", "/motor/state")
-        p = lambda n: self.get_parameter(n).value  
+        p = lambda n: self.get_parameter(n).value  # noqa: E731
 
         self.iface = p("can_iface")
         self.esc_id = int(p("esc_id"))
@@ -38,6 +39,16 @@ class M3508SpeedNode(Node):
         self.kp, self.ki, self.accel = float(p("kp")), float(p("ki")), float(p("accel"))
         self.limit = max(0, min(mc.C620_FULL_SCALE, int(p("max_current"))))
         window = max(1, min(16, int(p("window"))))
+
+        try:
+            with open(f"/sys/class/net/{self.iface}/operstate") as f:
+                operstate = f.read().strip()
+        except OSError:
+            raise SystemExit(f"{self.iface} does not exist")
+        if operstate != "up":
+            raise SystemExit(f"{self.iface} is {operstate}; bring it up first: "
+                             f"sudo scripts/install_can1_service.sh (once, at boot) or "
+                             f"sudo ip link set {self.iface} up type can bitrate 1000000 + sudo gpioset --mode=wait 2 4=0 &")
 
         self.io = mc.CanIO(self.iface, [0x200 if self.esc_id <= 4 else 0x1FF, 0x200 + self.esc_id])
         self.link = mc.Link(self.io, self.esc_id, window)
@@ -90,9 +101,15 @@ class M3508SpeedNode(Node):
                     speed = self.speed = self._new_speed()   # trigger=0 且已停稳: 不出力, 下次启动重新脱困
                     self.output = 0
                 else:
-                    # 脚本 __call__ 同款: 取整后的输出要存回 speed.output, update() 用它做下一拍的预测
                     self.output = speed.output = round(speed.update(goal, link.rpm_mean, now))
-            link.service(self.output, now)
+            try:
+                link.service(self.output, now)
+            except OSError as e:
+                if e.errno in (errno.ENETDOWN, errno.ENODEV, errno.ENXIO):
+                    self.get_logger().error(f"{self.iface} is down ({e.strerror}); waiting for it to come back", throttle_duration_sec=5.0)
+                    time.sleep(1.0)
+                    continue
+                raise
             deadline = link.send_deadline()
             self.io.wait(0.01 if deadline is None else max(0.0, min(0.01, deadline - time.monotonic())))
 
@@ -136,7 +153,12 @@ class M3508SpeedNode(Node):
                 self.get_logger().warn(f"zero current NOT confirmed within {mc.STOP_TIMEOUT:.0f} s (C620 will time out by itself)")
                 ok = False
                 break
-            link.service(0, now)
+            try:
+                link.service(0, now)
+            except OSError as e:
+                self.get_logger().warn(f"cannot send zero current: {e.strerror} ({self.iface} down?)")
+                ok = False
+                break
             deadline = link.send_deadline()
             io.wait(0.05 if deadline is None else min(0.05, max(0.0, deadline - time.monotonic())))
         for _ in range(3):

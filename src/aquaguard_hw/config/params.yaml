@@ -2,7 +2,7 @@ m3508_speed_node:
   ros__parameters:
     can_iface: "can1"
     esc_id: 1              # C620 ID 
-    target_hz: 200.0         
+    target_hz: 100.0         
     gear_ratio: 1.0        
     run_on_start: false    # true = start turning when powered, without trigerring
     trigger_topic: "/motor/trigger"
